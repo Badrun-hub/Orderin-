@@ -138,20 +138,20 @@ export default function DashboardAdmin() {
       {/* ── Quick Nav ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { label: 'Kelola Menu', icon: 'menu_book', color: 'primary', path: '/admin/menu' },
-          { label: 'Meja & QR', icon: 'table_restaurant', color: 'secondary', path: '/admin/meja' },
-          { label: 'Staf Kasir', icon: 'badge', color: 'tertiary', path: '/admin/kasir' },
-          { label: 'Analytics', icon: 'monitoring', color: 'blue-500', path: '/admin/analytics' },
-        ].map(({ label, icon, color, path }) => (
+          { label: 'Kelola Menu', icon: 'menu_book', hex: '#4edea3', path: '/admin/menu' },
+          { label: 'Meja & QR', icon: 'table_restaurant', hex: '#68dba9', path: '/admin/meja' },
+          { label: 'Staf Kasir', icon: 'badge', hex: '#e2a145', path: '/admin/kasir' },
+          { label: 'Analytics', icon: 'monitoring', hex: '#60a5fa', path: '/admin/analytics' },
+        ].map(({ label, icon, hex, path }) => (
           <div
             key={label}
             onClick={() => navigate(path)}
-            className={`bg-surface-container rounded-[2rem] p-7 flex flex-col items-center justify-center text-center gap-4 cursor-pointer hover:bg-surface-container-high hover:scale-[1.03] active:scale-95 transition-all duration-200 shadow-md group`}
+            className="bg-surface-container rounded-[2rem] p-7 flex flex-col items-center justify-center text-center gap-4 cursor-pointer hover:bg-surface-container-high hover:scale-[1.03] active:scale-95 transition-all duration-200 shadow-md group"
           >
-            <div className={`w-14 h-14 rounded-2xl bg-${color}/10 flex items-center justify-center group-hover:bg-${color}/20 transition-colors`}>
-              <span className={`material-symbols-outlined text-${color} text-3xl`}>{icon}</span>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center transition-colors" style={{ backgroundColor: hex + '1a' }}>
+              <span className="material-symbols-outlined text-3xl" style={{ color: hex }}>{icon}</span>
             </div>
-            <p className={`text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant group-hover:text-${color} transition-colors`}>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant group-hover:text-primary transition-colors">
               {label}
             </p>
           </div>

@@ -368,9 +368,18 @@ export default function DashboardKasir() {
           <span className="material-symbols-outlined text-lg" style={{fontVariationSettings: "'FILL' 1"}}>grid_view</span>
           <span className="text-[10px] font-label font-bold uppercase tracking-[0.05em] mt-1">Meja</span>
         </button>
-        <button onClick={() => alert("Rekap setoran Shift Anda (Coming Soon)")} className="flex flex-col items-center justify-center text-on-surface-variant hover:text-[#4edea3] transition-colors w-16">
-          <span className="material-symbols-outlined">timer</span>
-          <span className="text-[10px] font-label font-medium uppercase tracking-[0.05em] mt-1">Shift</span>
+        <button 
+          onClick={async () => {
+            const ok = await CustomConfirm("Akhiri Shift?", "Apakah Anda yakin ingin keluar dari sesi Shift Kasir saat ini?", "error", "logout", "Ya, Keluar")
+            if (ok) {
+               logout()
+               navigate('/kasir/login')
+            }
+          }}
+          className="flex flex-col items-center justify-center text-error hover:text-red-400 transition-colors w-16"
+        >
+          <span className="material-symbols-outlined">logout</span>
+          <span className="text-[10px] font-label font-bold uppercase tracking-[0.05em] mt-1">Keluar</span>
         </button>
       </nav>
 

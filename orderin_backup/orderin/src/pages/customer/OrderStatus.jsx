@@ -82,6 +82,16 @@ export default function OrderStatus() {
     )
   }
 
+  const handleRequestBill = async () => {
+    if (!window.confirm("Ingin meminta bill sekarang? Anda akan diarahkan ke kasir untuk pembayaran.")) return
+    try {
+      await api.put(`/orders/${currentOrderId}`, { status: 'bill_requested' })
+    } catch (err) {
+      console.error(err)
+      alert("Gagal meminta bill. Silakan panggil pelayan.")
+    }
+  }
+
   const s = getStatusConfig(order?.status)
 
   return (
@@ -97,7 +107,7 @@ export default function OrderStatus() {
           <span className="text-xl font-bold text-primary tracking-tighter">{cafeName || 'Orderin'}</span>
         </div>
         <div className="flex items-center gap-2">
-           <span className="text-[10px] uppercase font-black tracking-widest text-on-surface-variant border border-outline-variant px-2 py-1 rounded">Live Track</span>
+            <span className="text-[10px] uppercase font-black tracking-widest text-on-surface-variant border border-outline-variant px-2 py-1 rounded">Live Track</span>
         </div>
       </nav>
 
@@ -122,6 +132,17 @@ export default function OrderStatus() {
           </div>
           <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl"></div>
         </section>
+
+        {/* Minta Bill Button for Direct Payment */}
+        {order?.status === 'delivered' && (order?.payment_method === 'cash' || order?.payment_method === 'debit') && (
+           <button 
+             onClick={handleRequestBill}
+             className="w-full py-5 bg-amber-500 text-on-amber shadow-lg shadow-amber-500/20 rounded-3xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 animate-in zoom-in-95 duration-500"
+           >
+             <span className="material-symbols-outlined">receipt_long</span>
+             Minta Bill & Bayar Ke Kasir
+           </button>
+        )}
 
         {/* Order Items Summary */}
         <div className="bg-surface-container rounded-[2rem] p-6 ghost-border">
@@ -152,11 +173,24 @@ export default function OrderStatus() {
         <div className="bg-surface-container-low rounded-[1.5rem] p-6 flex flex-col sm:flex-row gap-4 sm:items-center justify-between border border-outline-variant">
           <div className="flex items-center gap-3">
              <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-xl">credit_card</span>
+                <span className="material-symbols-outlined text-primary text-xl">
+                  {order?.payment_method === 'cash' ? 'payments' : order?.payment_method === 'qris' ? 'qr_code_scanner' : 'credit_card'}
+                </span>
              </div>
              <div>
                 <p className="text-[10px] font-black uppercase text-on-surface-variant tracking-widest leading-none mb-1">Metode Bayar</p>
-                <p className="font-bold text-on-surface uppercase text-sm">{order?.payment_method?.toUpperCase() || 'TUNAI'}</p>
+                <p className="font-bold text-on-surface uppercase text-sm">
+                  {order?.payment_method === 'cash' ? 'TUNAI KASIR' 
+                    : order?.payment_method === 'qris' ? 'QRIS' 
+                    : order?.payment_method === 'ewallet' ? 'E-WALLET TRANSFER' 
+                    : order?.payment_method === 'debit' ? 'KARTU DEBIT/KREDIT' 
+                    : (order?.payment_method || 'TUNAI').toUpperCase()}
+                </p>
+                {(order?.payment_method === 'cash' || order?.payment_method === 'debit') && (
+                  <span className="inline-block mt-1 text-[9px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    Bayar Langsung di Kasir
+                  </span>
+                )}
              </div>
           </div>
           <p className="text-[10px] text-on-surface-variant font-medium font-body uppercase tracking-wider">Order ID: {order?.id?.substring(0,8)}</p>

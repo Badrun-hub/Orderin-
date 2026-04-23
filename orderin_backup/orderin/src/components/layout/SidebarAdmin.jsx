@@ -68,22 +68,31 @@ export default function SidebarAdmin() {
       {/* Profile & Footer Action */}
       <div className="mt-auto pt-6 space-y-4">
         <div className="p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant shadow-inner">
-          <div className="flex items-center gap-3 mb-4 cursor-pointer group" onClick={handleLogout}>
-            <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant group-hover:text-error group-hover:bg-error/20 transition-all border border-outline-variant shadow-sm overflow-hidden text-primary">
+          <div className="flex items-center gap-3 mb-4 cursor-pointer group" onClick={() => navigate('/admin/settings')}>
+            <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant border border-outline-variant shadow-sm overflow-hidden text-primary">
                <span className="material-symbols-outlined">person</span>
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-black truncate group-hover:text-error transition-colors">{displayUser.name}</p>
+              <p className="text-sm font-black truncate">{displayUser.name}</p>
               <p className="text-[10px] text-on-surface-variant truncate font-black uppercase tracking-widest">{displayUser.role}</p>
             </div>
           </div>
-          <button 
-            onClick={() => navigate('/admin/settings')}
-            className="w-full py-3.5 bg-gradient-to-r from-primary to-primary-container text-on-primary text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all hover:scale-[1.02] active:scale-95 duration-200 shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
-          >
-             <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>magic_button</span>
-             Update Studio
-          </button>
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={() => navigate('/admin/settings')}
+              className="w-full py-3.5 bg-gradient-to-r from-primary to-primary-container text-on-primary text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all hover:scale-[1.02] active:scale-95 duration-200 shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+            >
+               <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>magic_button</span>
+               Update Studio
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="w-full py-3.5 bg-error/10 text-error text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all hover:bg-error hover:text-on-error active:scale-95 duration-200 flex items-center justify-center gap-2 border border-error/20"
+            >
+               <span className="material-symbols-outlined text-[16px]">logout</span>
+               Keluar Admin
+            </button>
+          </div>
         </div>
       </div>
     </aside>

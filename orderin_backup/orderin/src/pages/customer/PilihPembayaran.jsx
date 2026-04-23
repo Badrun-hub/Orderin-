@@ -7,6 +7,13 @@ import api from '../../lib/api'
 
 const PAYMENT_METHODS = [
   { 
+    id: 'cash', 
+    name: 'Bayar Tunai di Kasir', 
+    icon: 'payments', 
+    description: 'Bayar langsung uang tunai ke kasir',
+    type: 'direct'
+  },
+  { 
     id: 'qris', 
     name: 'QRIS', 
     icon: 'qr_code_scanner', 
@@ -17,7 +24,7 @@ const PAYMENT_METHODS = [
     id: 'ewallet', 
     name: 'E-Wallet Transfer', 
     icon: 'account_balance_wallet', 
-    description: 'Kirim Mandiri ke Dompet Digital',
+    description: 'Transfer ke Dompet Digital',
     type: 'upload'
   },
   { 
@@ -25,13 +32,6 @@ const PAYMENT_METHODS = [
     name: 'Kartu Debit/Kredit', 
     icon: 'credit_card', 
     description: 'Gesek kartu di Kasir',
-    type: 'direct'
-  },
-  { 
-    id: 'cash', 
-    name: 'Tunai Kasir', 
-    icon: 'payments', 
-    description: 'Bayar langsung uang tunai di Kasir',
     type: 'direct'
   }
 ]
@@ -50,7 +50,7 @@ export default function PilihPembayaran() {
   if (cart.length === 0) {
     return (
       <div className="bg-surface text-on-surface min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <span className="material-symbols-outlined text-surface-variant text-6xl mb-4">shopping_basket</span>
+        <span className="material-symbols-outlined text-on-surface-variant text-6xl mb-4">shopping_basket</span>
         <h2 className="text-xl font-bold font-headline mb-4">Keranjang Anda Kosong</h2>
         <button onClick={() => navigate(`/${encodeURIComponent(lokasi)}/${encodeURIComponent(tableNo)}/menu`)} className="bg-primary text-on-primary px-6 py-3 rounded-xl font-bold">Kembali ke Menu</button>
       </div>
@@ -82,7 +82,7 @@ export default function PilihPembayaran() {
       const orderPayload = {
         table_id: realTableId,
         customer_name: session?.customerName || 'Pelanggan',
-        status: 'ordered',
+        status: selectedMethod.type === 'direct' ? 'ordered' : 'ordered',
         payment_method: selectedMethod.id,
         total: total,
         items: cart.map(item => ({
@@ -103,10 +103,12 @@ export default function PilihPembayaran() {
         paymentMethod: selectedMethod.id
       })
 
-      // Redirect berdasarkan tipe pembayaran
+      // 4. Redirect berdasarkan tipe pembayaran
       if (selectedMethod.type === 'upload') {
+        // QRIS / E-Wallet — perlu upload bukti bayar
         navigate(`/${encodeURIComponent(lokasi)}/${encodeURIComponent(tableNo)}/upload`)
       } else {
+        // Cash / Debit — langsung ke status (bayar di kasir)
         clearCart()
         navigate(`/${encodeURIComponent(lokasi)}/${encodeURIComponent(tableNo)}/status`)
       }
@@ -117,6 +119,13 @@ export default function PilihPembayaran() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Label tombol berdasarkan metode
+  const getButtonLabel = () => {
+    if (!selectedMethod) return 'Pilih Metode Dulu'
+    if (selectedMethod.type === 'direct') return 'Pesan & Bayar di Kasir'
+    return 'Lanjutkan & Upload Bukti'
   }
 
   return (
@@ -147,6 +156,22 @@ export default function PilihPembayaran() {
           </div>
         </div>
 
+        {/* Rincian Singkat */}
+        <div className="bg-surface-container rounded-2xl p-5 space-y-3">
+          <div className="flex justify-between text-sm text-on-surface-variant">
+            <span>Subtotal ({cart.reduce((a,c) => a + c.qty, 0)} item)</span>
+            <span className="font-bold text-on-surface">{formatRupiah(subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-on-surface-variant">
+            <span>Service Charge (5%)</span>
+            <span className="font-bold text-on-surface">{formatRupiah(serviceCharge)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-on-surface-variant">
+            <span>Pajak PB1 (10%)</span>
+            <span className="font-bold text-on-surface">{formatRupiah(pb1)}</span>
+          </div>
+        </div>
+
         {/* Payment Methods */}
         <section>
           <h3 className="font-headline text-xl font-extrabold mb-5 px-1">Pilih Metode Pembayaran</h3>
@@ -161,7 +186,7 @@ export default function PilihPembayaran() {
                   className={`flex items-center text-left gap-4 p-5 rounded-[1.5rem] transition-all duration-500 ghost-border relative overflow-hidden group ${
                     isSelected 
                       ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5 scale-[1.02]' 
-                      : 'bg-surface-container-low border-outline-variant hover:border-slate-700'
+                      : 'bg-surface-container-low border-outline-variant hover:border-primary/30'
                   }`}
                 >
                   {isSelected && <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-primary rounded-l-full"></div>}
@@ -177,12 +202,17 @@ export default function PilihPembayaran() {
                       {method.name}
                     </h4>
                     <p className="text-xs text-on-surface-variant font-medium leading-relaxed">{method.description}</p>
+                    {method.type === 'direct' && (
+                      <span className="inline-block mt-1.5 text-[9px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                        Bayar Langsung di Kasir
+                      </span>
+                    )}
                   </div>
 
                   <div className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                    isSelected ? 'border-primary bg-primary' : 'border-slate-800'
+                    isSelected ? 'border-primary bg-primary' : 'border-outline-variant'
                   }`}>
-                    {isSelected && <span className="material-symbols-outlined text-on-surface text-[16px] font-black">check</span>}
+                    {isSelected && <span className="material-symbols-outlined text-on-primary text-[16px] font-black">check</span>}
                   </div>
                 </button>
               )
@@ -197,14 +227,14 @@ export default function PilihPembayaran() {
         <button 
           onClick={handleProceed}
           disabled={!selectedMethod || isSubmitting}
-          className="w-full max-w-xl h-16 bg-[#10B981] disabled:opacity-40 text-[#003824] rounded-[1.2rem] font-headline text-lg font-black flex items-center justify-center gap-3 transition-all shadow-[0_15px_30px_rgba(16,185,129,0.2)]"
+          className="w-full max-w-xl h-16 bg-[#10B981] disabled:opacity-40 text-[#003824] rounded-[1.2rem] font-headline text-lg font-black flex items-center justify-center gap-3 transition-all shadow-[0_15px_30px_rgba(16,185,129,0.2)] active:scale-95"
         >
           {isSubmitting ? (
              <span className="material-symbols-outlined animate-spin font-black">progress_activity</span>
           ) : (
              <>
-               {selectedMethod ? `Lanjutkan & Pesan Sekarang` : 'Pilih Metode Dulu'}
-               {selectedMethod && <span className="material-symbols-outlined font-black">send</span>}
+               {getButtonLabel()}
+               {selectedMethod && <span className="material-symbols-outlined font-black">{selectedMethod.type === 'direct' ? 'storefront' : 'send'}</span>}
              </>
           )}
         </button>
