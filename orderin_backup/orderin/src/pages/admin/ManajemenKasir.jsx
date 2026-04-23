@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 export default function ManajemenKasir() {
   const navigate = useNavigate()
@@ -19,65 +19,60 @@ export default function ManajemenKasir() {
 
   const fetchData = async () => {
     setLoading(true)
-    // 1. Ambil list profiles khusus kasir
-    const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'kasir')
-    // 2. Ambil semua shift
-    const { data: shiftData } = await supabase.from('shifts').select('*')
-    
-    setKasirList(profiles || [])
-    setShifts(shiftData || [])
-    setLoading(false)
+    try {
+      // 1. Ambil list profiles khusus kasir
+      const { data: profiles } = await api.get('/profiles', { params: { role: 'kasir' } })
+      // 2. Ambil semua shift
+      const { data: shiftData } = await api.get('/shifts')
+      
+      setKasirList(profiles || [])
+      setShifts(shiftData || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleAddKasir = async (e) => {
     e.preventDefault()
     
-    // Create UUID manual dengan format standar
-    const newId = crypto.randomUUID()
-    
-    const baru = {
-      id: newId,
-      nama: form.nama,
-      role: 'kasir',
-      is_active: true,
-      pin: form.pin // Supabase butuh kolom 'pin' di tabel profiles
-    }
+    try {
+      const { data: newKasir } = await api.post('/profiles', {
+        nama: form.nama,
+        pin: form.pin || null,
+        role: 'kasir',
+        is_active: true
+      })
 
-    const { error } = await supabase.from('profiles').insert([baru])
-    
-    if (error) {
-      if (error.message.includes('column "pin" of relation "profiles" does not exist')) {
-         alert("GAGAL: Anda belum menambahkan kolom 'pin' di tabel profiles Supabase! Silakan eksekusi kode SQL berikut di Supabase:\n\nALTER TABLE profiles ADD COLUMN pin TEXT;\nALTER TABLE profiles ADD CONSTRAINT unique_pin UNIQUE (pin);")
-      } else {
-         alert(`Error: ${error.message}`)
-      }
-      return
+      setKasirList([...kasirList, newKasir])
+      setShowAddModal(false)
+      setForm({ nama: '', pin: '' })
+    } catch (error) {
+      alert(`Error: ${error.response?.data?.error || error.message}`)
     }
-
-    setKasirList([...kasirList, baru])
-    setShowAddModal(false)
-    setForm({ nama: '', pin: '' })
   }
 
   const handleDeleteKasir = async (id) => {
     if(!window.confirm('Yakin ingin menghapus kasir ini seketika?')) return
 
-    const { error } = await supabase.from('profiles').delete().eq('id', id)
-    if (error) {
-      alert("Gagal menghapus! " + error.message)
-    } else {
+    try {
+      await api.delete(`/profiles/${id}`)
       setKasirList(kasirList.filter(k => k.id !== id))
       if (selectedKasir?.id === id) setSelectedKasir(null)
+    } catch (error) {
+      alert("Gagal menghapus! " + (error.response?.data?.error || error.message))
     }
   }
 
   const toggleStatus = async (id, currentStatus) => {
     const newStatus = !currentStatus
-    const { error } = await supabase.from('profiles').update({ is_active: newStatus }).eq('id', id)
-    
-    if (!error) {
-       setKasirList(kasirList.map(k => k.id === id ? { ...k, is_active: newStatus } : k))
-       if (selectedKasir?.id === id) setSelectedKasir({ ...selectedKasir, is_active: newStatus })
+    try {
+      await api.put(`/profiles/${id}`, { is_active: newStatus })
+      setKasirList(kasirList.map(k => k.id === id ? { ...k, is_active: newStatus } : k))
+      if (selectedKasir?.id === id) setSelectedKasir({ ...selectedKasir, is_active: newStatus })
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -93,7 +88,7 @@ export default function ManajemenKasir() {
     <>
       <div className="flex flex-col gap-1 mb-8">
         <h1 className="text-4xl font-extrabold tracking-tight font-headline">Manajemen Kasir</h1>
-        <p className="text-on-surface-variant text-sm font-medium opacity-80 uppercase tracking-widest leading-none mt-1">SHIFT & PENDAPATAN (SUPABASE DATA)</p>
+        <p className="text-on-surface-variant text-sm font-medium opacity-80 uppercase tracking-widest leading-none mt-1">SHIFT & PENDAPATAN (LOCAL DATA)</p>
       </div>
 
       <div className="space-y-8">
@@ -102,7 +97,7 @@ export default function ManajemenKasir() {
         <div className="flex justify-between items-center flex-wrap gap-4 bg-surface-container-low p-6 rounded-3xl ghost-border">
           <div>
             <h2 className="text-2xl font-extrabold font-headline mb-1">Daftar Pekerja Kasir</h2>
-            <p className="text-sm text-on-surface-variant">Kelola PIN, lacak absensi, dan pantau hasil setoran kasir secara live (Supabase Data).</p>
+            <p className="text-sm text-on-surface-variant">Kelola PIN, lacak absensi, dan pantau hasil setoran kasir secara live.</p>
           </div>
           <button onClick={() => setShowAddModal(true)} className="bg-primary text-on-primary px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg shadow-primary/20">
             <span className="material-symbols-outlined text-[18px]">person_add</span> Tambah Kasir
@@ -224,7 +219,7 @@ export default function ManajemenKasir() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="4" className="py-8 text-center text-sm text-on-surface-variant">Belum ada riwayat shift. (Data Kosong dari Supabase)</td>
+                          <td colSpan="4" className="py-8 text-center text-sm text-on-surface-variant">Belum ada riwayat shift. (Data Kosong)</td>
                         </tr>
                       )}
                     </tbody>

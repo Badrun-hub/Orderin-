@@ -1,9 +1,20 @@
 import { create } from 'zustand'
 
-// Store untuk autentikasi Kasir & Admin
+// Store untuk autentikasi Kasir & Admin (JWT-based)
 export const useAuthStore = create((set) => ({
-  user: null, // Contoh: { id: 'kas1', name: 'Althea', role: 'kasir' }
+  user: JSON.parse(localStorage.getItem('orderin-user') || 'null'),
   
-  login: (userData) => set({ user: userData }),
-  logout: () => set({ user: null })
+  login: (userData, token) => {
+    localStorage.setItem('orderin-token', token)
+    localStorage.setItem('orderin-user', JSON.stringify(userData))
+    set({ user: userData })
+  },
+
+  logout: () => {
+    localStorage.removeItem('orderin-token')
+    localStorage.removeItem('orderin-user')
+    set({ user: null })
+  },
+
+  getToken: () => localStorage.getItem('orderin-token')
 }))

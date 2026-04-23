@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
 
 export default function LoginKasir() {
@@ -16,22 +16,16 @@ export default function LoginKasir() {
     setLoading(true)
     setErrorStatus(false)
     
-    // Validasi ke Supabase menggunakan kolom pin pada tabel profiles
+    // Validasi ke Local Backend menggunakan PIN
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('pin', pin)
-        .eq('role', 'kasir')
-        .eq('is_active', true)
-        .single() // expect exactly 1 match
+      const { data } = await api.post('/auth/login-pin', { pin })
 
-      if (error || !data) {
-        throw new Error('Pin salah atau akun non-aktif')
+      if (!data || !data.token) {
+        throw new Error('Login gagal')
       }
 
-      // Berhasil
-      login({ id: data.id, name: data.nama, role: 'kasir' })
+      // Berhasil — store JWT + user data
+      login(data.user, data.token)
       navigate('/kasir/dashboard')
 
     } catch (err) {

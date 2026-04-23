@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useSessionStore } from '../../store/sessionStore'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
+import socket from '../../lib/socket'
 import { useSettingsStore } from '../../store/settingsStore'
 
 export default function OrderStatus() {
@@ -21,23 +22,9 @@ export default function OrderStatus() {
     if (!currentOrderId) return;
     
     try {
-      const { data: oData, error: oError } = await supabase
-        .from('orders')
-        .select('*, tables(nomor_meja, lokasi)')
-        .eq('id', currentOrderId)
-        .single()
-      
-      if (oError) throw oError
-      setOrder(oData)
-
-      const { data: iData, error: iError } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', currentOrderId)
-      
-      if (iError) throw iError
-      setItems(iData || [])
-
+      const { data } = await api.get(`/orders/${currentOrderId}`)
+      setOrder(data)
+      setItems(data.order_items || [])
     } catch (err) {
       console.error('Error fetching status:', err)
     } finally {
@@ -49,22 +36,20 @@ export default function OrderStatus() {
     fetchOrderDetails()
 
     if (currentOrderId) {
-      const channel = supabase
-        .channel(`order-status-${currentOrderId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${currentOrderId}` },
-          (payload) => {
-            setOrder(prev => ({ ...prev, ...payload.new }))
-            if (payload.new.status === 'delivered') {
-               new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(e => {})
-            }
+      // Socket.io listener for order updates (replaces Supabase Realtime)
+      const handleOrderUpdated = (updatedOrder) => {
+        if (updatedOrder.id === currentOrderId) {
+          setOrder(prev => ({ ...prev, ...updatedOrder }))
+          if (updatedOrder.status === 'delivered') {
+             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(e => {})
           }
-        )
-        .subscribe()
+        }
+      }
+
+      socket.on('order_updated', handleOrderUpdated)
 
       return () => {
-        supabase.removeChannel(channel)
+        socket.off('order_updated', handleOrderUpdated)
       }
     }
   }, [currentOrderId])

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
+import socket from '../../lib/socket'
 import ActionModal, { CustomAlert, CustomConfirm } from '../../components/ui/ActionModal'
 import { useSettingsStore } from '../../store/settingsStore'
 
@@ -31,13 +32,11 @@ export default function DashboardKasir() {
   // Fetch Data Awal
   const fetchData = async () => {
     try {
-      const { data: tData } = await supabase.from('tables').select('*').order('nomor_meja', { ascending: true })
+      const { data: tData } = await api.get('/tables')
       setTables(tData || [])
 
       // Cari order yang belum selesai
-      const { data: oData } = await supabase.from('orders')
-        .select('*, order_items(*)')
-        .not('status', 'in', '("selesai", "cancelled")')
+      const { data: oData } = await api.get('/orders/active')
       setActiveOrders(oData || [])
       
     } catch(e) {
@@ -47,7 +46,7 @@ export default function DashboardKasir() {
     }
   }
 
-  // Efek Realtime Listener Supabase
+  // Socket.io Realtime Listener (replaces Supabase Realtime)
   useEffect(() => {
     if (!user || user.role !== 'kasir') return;
 
@@ -55,34 +54,25 @@ export default function DashboardKasir() {
 
     // Instance suara bell
     const ringTone = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
-    
-    // Subscribe ke Public Schema tabel Orders
-    const orderSubscription = supabase
-      .channel('public:orders_kasir')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        (payload) => {
-          console.log('Pesanan Baru Terdeteksi!', payload)
-          ringTone.play().catch(e => console.warn('Pengaturan Auto-play memblokir suara', e))
-          setNewOrderCount(prev => prev + 1)
-          fetchData()
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
-        () => fetchData()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tables' },
-        () => fetchData()
-      )
-      .subscribe()
+
+    const handleNewOrder = (payload) => {
+      console.log('Pesanan Baru Terdeteksi!', payload)
+      ringTone.play().catch(e => console.warn('Pengaturan Auto-play memblokir suara', e))
+      setNewOrderCount(prev => prev + 1)
+      fetchData()
+    }
+
+    const handleOrderUpdated = () => fetchData()
+    const handleTableUpdated = () => fetchData()
+
+    socket.on('new_order', handleNewOrder)
+    socket.on('order_updated', handleOrderUpdated)
+    socket.on('table_updated', handleTableUpdated)
 
     return () => {
-      supabase.removeChannel(orderSubscription)
+      socket.off('new_order', handleNewOrder)
+      socket.off('order_updated', handleOrderUpdated)
+      socket.off('table_updated', handleTableUpdated)
     }
   }, [user])
 
@@ -102,13 +92,13 @@ export default function DashboardKasir() {
 
   // Aksi-Aksi Meja
   const actionTerimaPesanan = async (orderId) => {
-    await supabase.from('orders').update({ status: 'confirmed' }).eq('id', orderId)
+    await api.put(`/orders/${orderId}`, { status: 'confirmed' })
     fetchData()
   }
 
   const handleUbahStatusSubmit = async (newStatus) => {
     if (statusPrompt) {
-      await supabase.from('orders').update({ status: newStatus }).eq('id', statusPrompt.orderId)
+      await api.put(`/orders/${statusPrompt.orderId}`, { status: newStatus })
       fetchData()
       setStatusPrompt(null)
     }
@@ -117,20 +107,25 @@ export default function DashboardKasir() {
   const actionSelesaikanBayar = async (orderId, tableId) => {
     const ok = await CustomConfirm("Selesaikan Pesanan?", "Ubah status pesanan menjadi Lunas, dan kosongkan meja ini untuk tamu berikutnya.", "success", "payments", "Selesaikan")
     if (ok) {
-      await supabase.from('orders').update({ status: 'selesai' }).eq('id', orderId)
-      await supabase.from('tables').update({ status: 'available' }).eq('id', tableId)
+      await api.put(`/orders/${orderId}`, { status: 'selesai' })
+      await api.put(`/tables/${tableId}`, { status: 'available' })
       fetchData()
     }
   }
 
   const actionDudukkanTamu = async (tableId) => {
-    await supabase.from('tables').update({ status: 'occupied' }).eq('id', tableId)
+    await api.put(`/tables/${tableId}`, { status: 'occupied' })
+    fetchData()
+  }
+
+  const actionBatalkanWalkIn = async (tableId) => {
+    await api.put(`/tables/${tableId}`, { status: 'available' })
     fetchData()
   }
 
   const renderTableCard = (table) => {
     // Cari order aktif untuk meja ini
-    const o = activeOrders.find(ord => ord.table_id === table.id)
+    const o = activeOrders.find(ord => ord.tableId === table.id || ord.table_id === table.id)
 
     // Tentukan Visual Status berdasarkan Tabel & Order
     let visualStatus = 'kosong'
@@ -150,7 +145,7 @@ export default function DashboardKasir() {
     // Time elapsed string based on created_at
     const elapsedCalc = () => {
       if (!o) return '-'
-      const diffMins = Math.floor((new Date() - new Date(o.created_at)) / 60000)
+      const diffMins = Math.floor((new Date() - new Date(o.createdAt || o.created_at)) / 60000)
       if (diffMins === 0) return 'Baru Saja'
       return `${diffMins}m`
     }
@@ -243,7 +238,7 @@ export default function DashboardKasir() {
               </div>
               <div className="flex gap-2">
                  <button onClick={(e) => { e.stopPropagation(); navigate(`/kasir/order/${table.id}`) }} className="flex-[2] py-3 bg-surface-container-highest text-on-surface rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Pesan Manual</button>
-                 <button onClick={(e) => { e.stopPropagation(); supabase.from('tables').update({ status: 'available' }).eq('id', table.id).then(fetchData) }} className="flex-1 py-3 bg-error/10 text-error rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:bg-error/20" title="Batalkan Walk In">X</button>
+                 <button onClick={(e) => { e.stopPropagation(); actionBatalkanWalkIn(table.id) }} className="flex-1 py-3 bg-error/10 text-error rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:bg-error/20" title="Batalkan Walk In">X</button>
               </div>
             </div>
           </div>

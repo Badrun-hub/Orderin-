@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSettingsStore, themePresets } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { formatRupiah } from '../../utils/formatRupiah'
 
 export default function Settings() {
@@ -23,9 +23,9 @@ export default function Settings() {
   useEffect(() => {
     const fetchMenus = async () => {
       try {
-        const { data } = await supabase.from('menus').select('*, categories(nama)').eq('is_available', true).limit(2)
+        const { data } = await api.get('/menus', { params: { available: 'true' } })
         if (data && data.length > 0) {
-          setPreviewMenus(data)
+          setPreviewMenus(data.slice(0, 2))
         } else {
           setPreviewMenus([
             { id: 'f1', nama: 'Latte Macchiato', harga: 35000, categories: { nama: 'Coffee Base' } },
@@ -50,25 +50,17 @@ export default function Settings() {
 
     setIsUploading(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `logo_${Date.now()}.${fileExt}`
-      const filePath = `brand/${fileName}`
+      const formData = new FormData()
+      formData.append('file', file)
 
-      // Gunakan bucket menu_images / default untuk saat ini
-      const { error: uploadError } = await supabase.storage
-        .from('menu_images')
-        .upload(filePath, file)
+      const { data } = await api.post('/upload/brand', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
 
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage
-        .from('menu_images')
-        .getPublicUrl(filePath)
-      
-      setFormLogo(publicUrlData.publicUrl)
+      setFormLogo(data.url)
     } catch (err) {
       console.error('Upload error:', err)
-      alert("Gagal Upload: " + err.message)
+      alert("Gagal Upload: " + (err.response?.data?.error || err.message))
     } finally {
       setIsUploading(false)
     }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
+import socket from '../../lib/socket'
 import { formatRupiah } from '../../utils/formatRupiah'
 import { useSettingsStore } from '../../store/settingsStore'
 
@@ -20,84 +21,86 @@ export default function DashboardAdmin() {
   const [weeklyData, setWeeklyData] = useState([])
   const [topMenus, setTopMenus] = useState([])
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const { data: tableData } = await supabase.from('tables').select('*')
-        const t = tableData || []
-        const activeT = t.filter(x => x.status !== 'available' && x.status !== 'kosong').length
+  const fetchStats = async () => {
+    try {
+      const { data: tableData } = await api.get('/tables')
+      const t = tableData || []
+      const activeT = t.filter(x => x.status !== 'available' && x.status !== 'kosong').length
 
-        const { data: orderData } = await supabase.from('orders').select('*, order_items(*)')
-        const ords = orderData || []
+      const { data: orderData } = await api.get('/orders')
+      const ords = orderData || []
 
-        const startOfDay = new Date()
-        startOfDay.setHours(0, 0, 0, 0)
+      const startOfDay = new Date()
+      startOfDay.setHours(0, 0, 0, 0)
 
-        const todaysOrders = ords.filter(o => new Date(o.created_at) >= startOfDay)
-        const revenue = todaysOrders.filter(o => o.status === 'selesai' || o.status === 'paid' || o.status === 'delivered')
-          .reduce((sum, o) => sum + (o.total || 0), 0)
+      const todaysOrders = ords.filter(o => new Date(o.createdAt || o.created_at) >= startOfDay)
+      const revenue = todaysOrders.filter(o => o.status === 'selesai' || o.status === 'paid' || o.status === 'delivered')
+        .reduce((sum, o) => sum + (o.total || 0), 0)
 
-        setStats({
-          totalRevenue: revenue,
-          totalOrders: todaysOrders.length,
-          activeTables: activeT,
-          totalTables: t.length
+      setStats({
+        totalRevenue: revenue,
+        totalOrders: todaysOrders.length,
+        activeTables: activeT,
+        totalTables: t.length
+      })
+
+      const days = ['SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB', 'MIN']
+      let weekly = days.map(d => ({ day: d, orders: 0 }))
+      let menuCount = {}
+
+      ords.filter(o => o.status === 'selesai' || o.status === 'paid' || o.status === 'delivered')
+        .forEach(ord => {
+          const d = new Date(ord.createdAt || ord.created_at)
+          let dayIdx = d.getDay() - 1
+          if (dayIdx === -1) dayIdx = 6
+          weekly[dayIdx].orders += 1
+
+          if (ord.order_items) {
+            ord.order_items.forEach(item => {
+              menuCount[item.nama_menu] = (menuCount[item.nama_menu] || 0) + item.qty
+            })
+          }
         })
 
-        const days = ['SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB', 'MIN']
-        let weekly = days.map(d => ({ day: d, orders: 0 }))
-        let menuCount = {}
+      const sortedMenus = Object.keys(menuCount)
+        .map(name => ({ name, val: menuCount[name] }))
+        .sort((a, b) => b.val - a.val)
+        .slice(0, 4)
 
-        ords.filter(o => o.status === 'selesai' || o.status === 'paid' || o.status === 'delivered')
-          .forEach(ord => {
-            const d = new Date(ord.created_at)
-            let dayIdx = d.getDay() - 1
-            if (dayIdx === -1) dayIdx = 6
-            weekly[dayIdx].orders += 1
+      const totalItemsSold = sortedMenus.reduce((sum, m) => sum + m.val, 0)
+      const topCalculated = sortedMenus.map(m => ({
+        name: m.name.substring(0, 15) + (m.name.length > 15 ? '...' : ''),
+        val: totalItemsSold > 0 ? Math.round((m.val / totalItemsSold) * 100) + '%' : '0%'
+      }))
 
-            if (ord.order_items) {
-              ord.order_items.forEach(item => {
-                menuCount[item.nama_menu] = (menuCount[item.nama_menu] || 0) + item.qty
-              })
-            }
-          })
+      const maxOrder = Math.max(...weekly.map(w => w.orders), 1)
+      const weeklyNormalized = weekly.map((w, idx) => ({
+        day: w.day,
+        height: Math.max((w.orders / maxOrder) * 100, 5) + '%',
+        isToday: idx === (new Date().getDay() - 1 === -1 ? 6 : new Date().getDay() - 1),
+        orders: w.orders
+      }))
 
-        const sortedMenus = Object.keys(menuCount)
-          .map(name => ({ name, val: menuCount[name] }))
-          .sort((a, b) => b.val - a.val)
-          .slice(0, 4)
+      setWeeklyData(weeklyNormalized)
+      setTopMenus(topCalculated)
 
-        const totalItemsSold = sortedMenus.reduce((sum, m) => sum + m.val, 0)
-        const topCalculated = sortedMenus.map(m => ({
-          name: m.name.substring(0, 15) + (m.name.length > 15 ? '...' : ''),
-          val: totalItemsSold > 0 ? Math.round((m.val / totalItemsSold) * 100) + '%' : '0%'
-        }))
-
-        const maxOrder = Math.max(...weekly.map(w => w.orders), 1)
-        const weeklyNormalized = weekly.map((w, idx) => ({
-          day: w.day,
-          height: Math.max((w.orders / maxOrder) * 100, 5) + '%',
-          isToday: idx === (new Date().getDay() - 1 === -1 ? 6 : new Date().getDay() - 1),
-          orders: w.orders
-        }))
-
-        setWeeklyData(weeklyNormalized)
-        setTopMenus(topCalculated)
-
-      } catch (err) {
-        console.error("Gagal memuat stats admin:", err)
-      }
+    } catch (err) {
+      console.error("Gagal memuat stats admin:", err)
     }
+  }
 
+  useEffect(() => {
     fetchStats()
 
-    const channel = supabase.channel('admin_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchStats)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, fetchStats)
-      .subscribe()
+    // Socket.io listeners instead of Supabase Realtime
+    socket.on('new_order', fetchStats)
+    socket.on('order_updated', fetchStats)
+    socket.on('table_updated', fetchStats)
 
     return () => {
-      supabase.removeChannel(channel)
+      socket.off('new_order', fetchStats)
+      socket.off('order_updated', fetchStats)
+      socket.off('table_updated', fetchStats)
     }
   }, [])
 

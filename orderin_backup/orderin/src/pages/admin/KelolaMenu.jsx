@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import ActionModal, { CustomAlert, CustomConfirm } from '../../components/ui/ActionModal'
 
 export default function KelolaMenu() {
@@ -38,8 +38,8 @@ export default function KelolaMenu() {
   const fetchMenus = async () => {
     setLoading(true)
     try {
-      const { data: cats } = await supabase.from('categories').select('*').order('urutan')
-      const { data: mnus } = await supabase.from('menus').select('*, categories(*)')
+      const { data: cats } = await api.get('/categories')
+      const { data: mnus } = await api.get('/menus')
       
       setCategories(cats || [])
       setMenus(mnus || [])
@@ -73,7 +73,7 @@ export default function KelolaMenu() {
     setForm({
       id: menu.id,
       nama: menu.nama,
-      category_id: menu.category_id,
+      category_id: menu.categoryId || menu.category_id,
       harga: menu.harga,
       deskripsi: menu.deskripsi,
       foto_url: menu.foto_url || '',
@@ -82,32 +82,21 @@ export default function KelolaMenu() {
     setShowModal(true)
   }
 
-  // Handle Photo Upload to Supabase Storage
+  // Handle Photo Upload to Local Backend
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
     setIsUploading(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random().toString(36).substring(2)}${Date.now()}.${fileExt}`
-      const filePath = `menus/${fileName}`
+      const formData = new FormData()
+      formData.append('file', file)
 
-      // Upload ke bucket 'menu_images'
-      const { error: uploadError } = await supabase.storage
-        .from('menu_images')
-        .upload(filePath, file)
+      const { data } = await api.post('/upload/menus', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
 
-      if (uploadError) throw uploadError
-
-      // Dapatkan Public URL
-      const { data: publicUrlData } = supabase.storage
-        .from('menu_images')
-        .getPublicUrl(filePath)
-      
-      const publicUrl = publicUrlData.publicUrl
-
-      setForm({ ...form, foto_url: publicUrl })
+      setForm({ ...form, foto_url: data.url })
     } catch (err) {
       console.error('Upload error:', err)
       CustomAlert("Gagal Upload", err.message, "error")
@@ -128,12 +117,14 @@ export default function KelolaMenu() {
       is_available: form.is_available
     }
 
-    if (editMode) {
-      const { error } = await supabase.from('menus').update(payload).eq('id', form.id)
-      if (error) CustomAlert("Gagal Update", error.message, "error")
-    } else {
-      const { error } = await supabase.from('menus').insert([payload])
-      if (error) CustomAlert("Gagal Tambah", error.message, "error")
+    try {
+      if (editMode) {
+        await api.put(`/menus/${form.id}`, payload)
+      } else {
+        await api.post('/menus', payload)
+      }
+    } catch (err) {
+      CustomAlert("Gagal Simpan", err.response?.data?.error || err.message, "error")
     }
 
     setShowModal(false)
@@ -143,27 +134,27 @@ export default function KelolaMenu() {
   const handleDelete = async (id) => {
     const ok = await CustomConfirm("Hapus Menu Ini?", "Data akan terhapus secara permanen dari daftar menu resto.", "error", "delete_forever", "Ya, Hapus")
     if(ok) {
-       await supabase.from('menus').delete().eq('id', id)
+       await api.delete(`/menus/${id}`)
        fetchMenus()
     }
   }
 
   const toggleAvailability = async (id, currentStatus) => {
-    await supabase.from('menus').update({ is_available: !currentStatus }).eq('id', id)
+    await api.patch(`/menus/${id}/toggle`)
     fetchMenus()
   }
 
   const handleSaveCategory = async (e) => {
     e.preventDefault()
     if (newCatName.trim()) {
-      await supabase.from('categories').insert([{ nama: newCatName.trim() }])
+      await api.post('/categories', { nama: newCatName.trim() })
       setNewCatName('')
       setCategoryModal(false)
       fetchMenus()
     }
   }
 
-  if (loading && menus.length === 0) return <div className="text-on-surface p-20 text-center font-bold">Memuat Supabase Menu...</div>
+  if (loading && menus.length === 0) return <div className="text-on-surface p-20 text-center font-bold">Memuat Menu...</div>
 
   return (
     <>

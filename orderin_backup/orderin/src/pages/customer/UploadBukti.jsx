@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useCartStore } from '../../store/cartStore'
 import { useSessionStore } from '../../store/sessionStore'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { useSettingsStore } from '../../store/settingsStore'
 
 export default function UploadBukti() {
@@ -46,36 +46,21 @@ export default function UploadBukti() {
     
     setIsUploading(true)
     try {
-      // 1. Upload ke Storage Supabase
-      const fileExt = selectedFile.name.split('.').pop()
-      const fileName = `${currentOrderId}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `receipts/${fileName}`
+      // 1. Upload file to local backend
+      const formData = new FormData()
+      formData.append('file', selectedFile)
 
-      const { error: uploadError } = await supabase.storage
-        .from('payment_proofs')
-        .upload(filePath, selectedFile)
+      const { data: uploadData } = await api.post('/upload/receipts', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
 
-      if (uploadError) {
-         console.warn("Storage Error:", uploadError.message)
-      }
+      const fileUrl = uploadData?.url || ''
 
-      // 2. Ambil Public URL
-      const { data: publicUrlData } = supabase.storage
-        .from('payment_proofs')
-        .getPublicUrl(filePath)
-      
-      const fileUrl = publicUrlData?.publicUrl || ''
-
-      // 3. Update Database Order
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ 
-          bukti_bayar_url: fileUrl,
-          status: 'payment_uploaded'
-        })
-        .eq('id', currentOrderId)
-
-      if (updateError) throw updateError
+      // 2. Update Database Order
+      await api.put(`/orders/${currentOrderId}`, {
+        bukti_bayar_url: fileUrl,
+        status: 'payment_uploaded'
+      })
 
       // Berhasil
       clearCart()

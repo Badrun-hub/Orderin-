@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import api from '../../lib/api'
 
 export default function LoginAdmin() {
   const navigate = useNavigate()
@@ -9,17 +10,27 @@ export default function LoginAdmin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorStatus, setErrorStatus] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
+    setLoading(true)
     
-    // Mockup Validasi MVP: Email admin@orderin.com, Pass admin123
-    if (email === 'admin@orderin.com' && password === 'admin123') {
-      login({ id: 'a1', name: 'Althea Manager', role: 'admin' })
+    try {
+      const { data } = await api.post('/auth/login-admin', { email, password })
+
+      if (!data || !data.token) {
+        throw new Error('Login gagal')
+      }
+
+      login(data.user, data.token)
       navigate('/admin/dashboard')
-    } else {
+    } catch (err) {
+      console.error(err)
       setErrorStatus(true)
       setTimeout(() => setErrorStatus(false), 2500)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -76,9 +87,10 @@ export default function LoginAdmin() {
 
           <button 
             type="submit"
-            className="w-full h-14 mt-2 bg-on-surface text-surface rounded-xl font-headline font-bold text-sm hover:bg-surface-container-highest active:scale-95 transition-all flex items-center justify-center gap-2"
+            disabled={loading}
+            className={`w-full h-14 mt-2 bg-on-surface text-surface rounded-xl font-headline font-bold text-sm hover:bg-surface-container-highest active:scale-95 transition-all flex items-center justify-center gap-2 ${loading ? 'opacity-50' : ''}`}
           >
-            Masuk Dashboard
+            {loading ? 'Memvalidasi...' : 'Masuk Dashboard'}
             <span className="material-symbols-outlined text-lg">arrow_forward</span>
           </button>
         </form>

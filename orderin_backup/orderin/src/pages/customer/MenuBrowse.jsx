@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCartStore } from '../../store/cartStore'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { useSettingsStore } from '../../store/settingsStore'
 
 export default function MenuBrowse() {
@@ -20,37 +20,25 @@ export default function MenuBrowse() {
   const [loading, setLoading] = useState(true)
   const [resolvedTable, setResolvedTable] = useState(null)
 
-  // Fetch Real Data from Supabase
+  // Fetch Real Data from Local API
   const fetchData = async () => {
     try {
       setLoading(true)
       
       // 0. Resolve Table by Lokasi & Nomor Meja
-      const { data: tData } = await supabase
-        .from('tables')
-        .select('*')
-        .eq('lokasi', lokasi)
-        .eq('nomor_meja', tableNo)
-        .maybeSingle()
-      
-      if (tData) setResolvedTable(tData)
+      try {
+        const { data: tData } = await api.get('/tables/find', {
+          params: { lokasi, nomor_meja: tableNo }
+        })
+        if (tData) setResolvedTable(tData)
+      } catch (e) { /* table not found is non-fatal */ }
 
       // 1. Fetch Categories
-      const { data: cats, error: catError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('urutan', { ascending: true })
-      
-      if (catError) throw catError
+      const { data: cats } = await api.get('/categories')
       setCategories(cats || [])
 
-      // 2. Fetch Menus
-      const { data: mnus, error: mnuError } = await supabase
-        .from('menus')
-        .select('*, categories(nama)')
-        .eq('is_available', true)
-      
-      if (mnuError) throw mnuError
+      // 2. Fetch Menus (available only)
+      const { data: mnus } = await api.get('/menus', { params: { available: 'true' } })
       setMenus(mnus || [])
       
     } catch (err) {

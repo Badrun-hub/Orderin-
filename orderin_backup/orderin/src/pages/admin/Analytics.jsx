@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Cell
 } from 'recharts'
 import { formatRupiah } from '../../utils/formatRupiah'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 export default function Analytics() {
   const navigate = useNavigate()
@@ -25,7 +25,7 @@ export default function Analytics() {
     setLoading(true)
     
     // Simulate Fetch Orders (Real Data)
-    const { data: orders } = await supabase.from('orders').select('*, order_items(*)')
+    const { data: orders } = await api.get('/orders')
     const o = orders || []
 
     const validOrders = o.filter(x => x.status === 'selesai' || x.status === 'paid' || x.status === 'delivered' || x.status === 'payment_confirmed')

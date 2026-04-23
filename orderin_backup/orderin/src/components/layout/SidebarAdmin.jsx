@@ -1,14 +1,15 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSettingsStore } from '../../store/settingsStore'
-import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/authStore'
 
 export default function SidebarAdmin() {
   const navigate = useNavigate()
   const location = useLocation()
   const { cafeName, cafeLogo } = useSettingsStore()
+  const { user, logout } = useAuthStore()
   
-  // Mock User - Replace with proper auth if available
-  const user = { name: 'Althea Manager', role: 'Manager' }
+  // Fallback if no user in store
+  const displayUser = user || { name: 'Manager', role: 'Admin' }
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/admin/dashboard' },
@@ -18,9 +19,9 @@ export default function SidebarAdmin() {
     { id: 'branding', label: 'Branding', icon: 'palette', path: '/admin/settings' }
   ]
 
-  const logout = async () => {
+  const handleLogout = () => {
     if (window.confirm('Ingin keluar dari Portal Admin?')) {
-      await supabase.auth.signOut()
+      logout()
       navigate('/admin/login')
     }
   }
@@ -67,13 +68,13 @@ export default function SidebarAdmin() {
       {/* Profile & Footer Action */}
       <div className="mt-auto pt-6 space-y-4">
         <div className="p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant shadow-inner">
-          <div className="flex items-center gap-3 mb-4 cursor-pointer group" onClick={logout}>
+          <div className="flex items-center gap-3 mb-4 cursor-pointer group" onClick={handleLogout}>
             <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant group-hover:text-error group-hover:bg-error/20 transition-all border border-outline-variant shadow-sm overflow-hidden text-primary">
                <span className="material-symbols-outlined">person</span>
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-black truncate group-hover:text-error transition-colors">{user.name}</p>
-              <p className="text-[10px] text-on-surface-variant truncate font-black uppercase tracking-widest">{user.role}</p>
+              <p className="text-sm font-black truncate group-hover:text-error transition-colors">{displayUser.name}</p>
+              <p className="text-[10px] text-on-surface-variant truncate font-black uppercase tracking-widest">{displayUser.role}</p>
             </div>
           </div>
           <button 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../store/sessionStore'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { useSettingsStore } from '../../store/settingsStore'
 
 export default function QRLanding() {
@@ -18,13 +18,9 @@ export default function QRLanding() {
   useEffect(() => {
     const resolveTable = async () => {
       try {
-        const { data, error } = await supabase
-          .from('tables')
-          .select('*')
-          .eq('lokasi', lokasi)
-          .eq('nomor_meja', tableNo)
-          .maybeSingle()
-        
+        const { data } = await api.get('/tables/find', {
+          params: { lokasi, nomor_meja: tableNo }
+        })
         if (data) setResolvedTable(data)
       } catch (err) {
         console.error("Table resolution error:", err)

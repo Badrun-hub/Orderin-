@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useCartStore } from '../../store/cartStore'
 import { formatRupiah } from '../../utils/formatRupiah'
 import { useSessionStore } from '../../store/sessionStore'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 
 const PAYMENT_METHODS = [
   { 
@@ -68,12 +68,9 @@ export default function PilihPembayaran() {
     setIsSubmitting(true)
     try {
       // 1. Ambil ID Meja dari Tabel berdasarkan Lokasi & Nomor Meja
-      const { data: tableData, error: tableError } = await supabase
-        .from('tables')
-        .select('id')
-        .eq('lokasi', lokasi)
-        .eq('nomor_meja', tableNo)
-        .maybeSingle()
+      const { data: tableData } = await api.get('/tables/find', {
+        params: { lokasi, nomor_meja: tableNo }
+      })
       
       if (!tableData) {
         throw new Error(`Meja ${tableNo} di ${lokasi} tidak ditemukan.`)
@@ -81,46 +78,25 @@ export default function PilihPembayaran() {
       
       const realTableId = tableData.id;
 
-      // 2. Insert Order Header
+      // 2. Create Order + Items in one API call
       const orderPayload = {
         table_id: realTableId,
         customer_name: session?.customerName || 'Pelanggan',
         status: 'ordered',
         payment_method: selectedMethod.id,
         total: total,
+        items: cart.map(item => ({
+          menu_id: item.id,
+          nama_menu: item.nama,
+          harga: item.harga,
+          qty: item.qty,
+          subtotal: item.harga * item.qty
+        }))
       }
 
-      const { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert([orderPayload])
-        .select()
-        .single()
+      const { data: newOrder } = await api.post('/orders', orderPayload)
 
-      if (orderError) throw orderError
-
-      // 3. Insert Order Items
-      const itemsPayload = cart.map(item => ({
-        order_id: newOrder.id,
-        menu_id: item.id,
-        nama_menu: item.nama,
-        harga: item.harga,
-        qty: item.qty,
-        subtotal: item.harga * item.qty
-      }))
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(itemsPayload)
-
-      if (itemsError) throw itemsError
-
-      // 4. Update Table Status
-      await supabase
-        .from('tables')
-        .update({ status: 'occupied' })
-        .eq('id', realTableId)
-
-      // 5. Update Session & Global State
+      // 3. Update Session & Global State
       setOrderId(newOrder.id)
       setSession({
         ...session,

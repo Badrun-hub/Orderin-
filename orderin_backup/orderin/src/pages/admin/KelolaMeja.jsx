@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import api from '../../lib/api'
 import { CustomAlert, CustomConfirm } from '../../components/ui/ActionModal'
 import { useSettingsStore } from '../../store/settingsStore'
 
@@ -20,25 +20,30 @@ export default function KelolaMeja() {
 
   const fetchTables = async () => {
     setLoading(true)
-    const { data: tableData } = await supabase.from('tables').select('*').order('nomor_meja', { ascending: true })
-    setTables(tableData || [])
-    setLoading(false)
+    try {
+      const { data: tableData } = await api.get('/tables')
+      setTables(tableData || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
     
-    // Kirim Ke Supabase (Real)
+    // Kirim Ke Local Backend
     const newTable = {
       nomor_meja: form.nomor_meja,
       lokasi: form.lokasi,
       status: 'available'
     }
 
-    const { error } = await supabase.from('tables').insert([newTable])
-
-    if (error) {
-       CustomAlert("Gagal Tambah Meja", error.message, "error", "error")
+    try {
+      await api.post('/tables', newTable)
+    } catch (error) {
+       CustomAlert("Gagal Tambah Meja", error.response?.data?.error || error.message, "error", "error")
        return
     }
 
@@ -50,7 +55,7 @@ export default function KelolaMeja() {
   const handleDelete = async (id) => {
     const ok = await CustomConfirm("Hapus Meja?", "Meja ini dan stiker QR yang terhubung akan tidak berlaku lagi setelah dihapus.", "error", "warning", "Hapus Permanen")
     if (ok) {
-       await supabase.from('tables').delete().eq('id', id)
+       await api.delete(`/tables/${id}`)
        fetchTables()
     }
   }
@@ -67,7 +72,7 @@ export default function KelolaMeja() {
     <>
       <div className="flex flex-col gap-1 mb-8">
         <h1 className="text-4xl font-extrabold tracking-tight font-headline">Manajemen Meja & QR</h1>
-        <p className="text-on-surface-variant text-sm font-medium opacity-80 uppercase tracking-widest">TOKO UTAMA (SUPABASE)</p>
+        <p className="text-on-surface-variant text-sm font-medium opacity-80 uppercase tracking-widest">TOKO UTAMA (LOCAL)</p>
       </div>
 
       <div className="space-y-8">
